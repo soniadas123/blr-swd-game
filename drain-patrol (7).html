@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRAIN PATROL · Bengaluru 2026</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a12; --panel:#12122b; --panel2:#1c1c3f;
+    --grid:#1c2b1c; --gridline:#204020;
+    --txt:#e8e8ff; --dim:#7d7da8;
+    --gold:#ffd23f; --hot:#ff2e88;
+    --vv:#c084ff; --kc:#ff5040; --hn:#3fffc2;
+    --bevel-l:#3a3a7a; --bevel-d:#05050e;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{font-family:'VT323',monospace;background:var(--bg);color:var(--txt);
+       display:flex;flex-direction:column;overflow:hidden;font-size:20px}
+  .px{font-family:'Press Start 2P',monospace}
+
+  /* chunky bevel, the universal 90s border */
+  .bevel{border:3px solid;border-color:var(--bevel-l) var(--bevel-d) var(--bevel-d) var(--bevel-l)}
+  .bevel-in{border:3px solid;border-color:var(--bevel-d) var(--bevel-l) var(--bevel-l) var(--bevel-d)}
+
+  /* ================= HEADER ================= */
+  header{background:var(--panel);padding:8px 12px;display:flex;align-items:center;gap:14px;
+         flex-wrap:wrap;border-bottom:3px solid var(--bevel-d)}
+  .logo{font-size:13px;color:var(--gold);text-shadow:2px 2px 0 var(--hot);white-space:nowrap;letter-spacing:1px}
+  .logo small{display:block;font-size:7px;color:var(--dim);text-shadow:none;margin-top:5px;letter-spacing:2px}
+  #home,#curious{background:var(--panel2);color:var(--gold);font-size:13px;width:38px;height:38px;
+        padding:0;cursor:pointer;line-height:1;flex-shrink:0}
+  #home:hover,#curious:hover{color:var(--txt)}
+  #home:active,#curious:active{border-color:var(--bevel-d) var(--bevel-l) var(--bevel-l) var(--bevel-d)}
+  #home:focus-visible,#curious:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  #curious{color:var(--hn)}
+  .hud{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
+  .stat{background:#000;padding:4px 10px 3px;min-width:96px;text-align:center}
+  .stat .lb{font-size:7px;color:var(--dim);letter-spacing:1px}
+  .stat .vl{font-size:13px;color:var(--gold);margin-top:4px;font-family:'Press Start 2P',monospace}
+
+  /* ================= MAP ================= */
+  #stage{flex:1;position:relative;background:
+    repeating-linear-gradient(0deg,var(--grid) 0 22px,var(--gridline) 22px 23px),
+    repeating-linear-gradient(90deg,transparent 0 22px,var(--gridline) 22px 23px)}
+  #map{position:absolute;inset:0;background:transparent}
+  .leaflet-tile{filter:saturate(.7) contrast(1.05)}
+  #stage.gridmode .leaflet-tile-pane{display:none}
+  #linklost{display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);
+    z-index:900;background:#000;color:var(--hot);padding:6px 12px;font-size:9px;
+    border:2px solid var(--hot);letter-spacing:1px}
+  #stage.gridmode #linklost{display:block;animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* CRT scanlines + vignette over everything */
+  #crt{position:absolute;inset:0;pointer-events:none;z-index:950;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 2px,transparent 2px 4px);
+    box-shadow:inset 0 0 120px rgba(0,0,0,.55)}
+  @media (prefers-reduced-motion: no-preference){
+    #crt::after{content:'';position:absolute;inset:0;
+      background:linear-gradient(rgba(255,255,255,.03),transparent 3px);
+      animation:roll 7s linear infinite}
+    @keyframes roll{from{transform:translateY(-100%)}to{transform:translateY(100%)}}
+  }
+
+  .leaflet-control-zoom a{background:var(--panel2)!important;color:var(--gold)!important;
+    border:2px solid var(--bevel-d)!important;font-family:'Press Start 2P',monospace!important;
+    font-size:10px!important;border-radius:0!important}
+  .leaflet-control-attribution{font-family:'VT323',monospace!important;font-size:12px!important;
+    background:rgba(0,0,0,.8)!important;color:var(--dim)!important}
+  .leaflet-control-attribution a{color:var(--txt)!important}
+
+  /* pixel markers: hard squares, no rounding anywhere */
+  .pt{image-rendering:pixelated;box-shadow:0 0 0 2px #000, 0 0 0 3px rgba(255,255,255,.7)}
+  @keyframes spawn{0%,40%{opacity:0}41%,70%{opacity:1;transform:scale(1.8)}100%{opacity:1;transform:scale(1)}}
+  .pt.fresh{animation:spawn .45s steps(3)}
+  @media (prefers-reduced-motion: reduce){.pt.fresh{animation:none}}
+
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--txt);border-radius:0;
+    border:3px solid;border-color:var(--bevel-l) var(--bevel-d) var(--bevel-d) var(--bevel-l);
+    font-family:'VT323',monospace;font-size:18px;box-shadow:4px 4px 0 #000}
+  .leaflet-popup-tip{background:var(--panel)}
+  .leaflet-popup-content{margin:8px 12px;line-height:1.4}
+  .leaflet-popup-content .k{color:var(--gold)}
+
+  /* ================= CONTROL DECK ================= */
+  footer{background:var(--panel);padding:10px 12px;display:grid;
+         grid-template-columns:auto 1fr auto;gap:12px;align-items:end;
+         border-top:3px solid var(--bevel-l)}
+  #play{width:88px;height:52px;background:var(--panel2);color:var(--gold);cursor:pointer;
+        font-family:'Press Start 2P',monospace;font-size:9px;letter-spacing:1px}
+  #play:active{border-color:var(--bevel-d) var(--bevel-l) var(--bevel-l) var(--bevel-d)}
+  #play:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+  .tl-wrap{min-width:0}
+  .tl-head{display:flex;justify-content:space-between;font-size:16px;color:var(--dim);margin-bottom:4px}
+  #dateout{color:var(--gold);font-family:'Press Start 2P',monospace;font-size:9px}
+  #timeline{display:flex;align-items:flex-end;gap:3px;height:48px;background:#000;
+            padding:4px 4px 0;cursor:pointer}
+  .bar{flex:1;min-width:5px;background:#2a2a55;position:relative}
+  .bar.done{background:var(--dim)}
+  .bar.now{background:var(--gold);box-shadow:0 0 6px var(--gold)}
+  .bar:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:50%;
+    transform:translateX(-50%);background:#000;border:2px solid var(--gold);
+    padding:2px 8px;font-size:15px;white-space:nowrap;color:var(--txt);z-index:1200}
+
+  .side{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+  .chip{display:flex;align-items:center;gap:8px;font-size:17px;cursor:pointer;
+        background:var(--panel2);color:var(--txt);font-family:inherit;
+        padding:3px 8px;text-align:left;line-height:1}
+  .chip .sw{width:10px;height:10px;box-shadow:0 0 0 2px #000}
+  .chip .n{color:var(--gold);margin-left:auto}
+  .chip.off{opacity:.3}
+  .chip:focus-visible,#snd:focus-visible{outline:3px solid var(--gold);outline-offset:1px}
+  #snd{background:var(--panel2);color:var(--dim);font-family:'Press Start 2P',monospace;
+       font-size:7px;padding:5px 8px;cursor:pointer;letter-spacing:1px}
+  #snd.on{color:var(--hn)}
+
+  /* ================= TITLE SCREEN ================= */
+  #title{position:fixed;inset:0;z-index:2000;background:var(--bg);display:flex;
+         flex-direction:column;align-items:center;justify-content:center;gap:26px;
+         text-align:center;padding:20px}
+  #title::before{content:'';position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.2) 0 2px,transparent 2px 4px)}
+  .t-big{font-size:clamp(18px,5vw,34px);color:var(--gold);
+         text-shadow:3px 3px 0 var(--hot),6px 6px 0 #000;letter-spacing:2px;line-height:1.6}
+  #start{font-family:'Press Start 2P',monospace;font-size:12px;color:var(--txt);
+         background:none;border:none;cursor:pointer;padding:14px 10px;
+         animation:blink 1.1s steps(2) infinite;letter-spacing:2px}
+  .t-cred{font-size:15px;color:var(--dim);position:absolute;bottom:38px;line-height:1.5;
+          max-width:92vw}
+  .credit-bar{background:var(--panel);color:var(--dim);font-size:14px;text-align:center;
+         padding:4px 8px;border-top:3px solid var(--bevel-d);flex-shrink:0}
+  .credit-bar a{color:var(--hn);text-decoration:none}
+  .credit-bar a:hover{text-decoration:underline}
+  #title .credit-bar{position:absolute;bottom:0;left:0;right:0;border-top:none;
+         background:transparent}
+
+  /* ================= SOUND DIALOG ================= */
+  #snddlg,#curiousdlg{display:none;position:fixed;inset:0;z-index:1800;background:rgba(5,5,14,.65);
+          align-items:center;justify-content:center;padding:20px}
+  #snddlg.show,#curiousdlg.show{display:flex}
+  .dlg{background:var(--panel);padding:0;min-width:280px;max-width:90vw;
+       box-shadow:6px 6px 0 #000}
+  .curious-dlg{max-width:640px;width:100%}
+  .dlg-bar{background:var(--panel2);color:var(--gold);font-family:'Press Start 2P',monospace;
+           font-size:9px;padding:8px 10px;letter-spacing:1px;
+           border-bottom:3px solid var(--bevel-d)}
+  .dlg-body{padding:16px 18px;font-size:20px;line-height:1.4;text-align:center}
+  .curious-body{text-align:left;max-height:60vh;overflow-y:auto}
+  .curious-body h2{font-family:'Press Start 2P',monospace;font-size:13px;color:var(--gold);
+       margin:18px 0 8px;letter-spacing:1px}
+  .curious-body h2:first-child{margin-top:0}
+  .curious-body h3{font-family:'Press Start 2P',monospace;font-size:10px;color:var(--hn);
+       margin:14px 0 6px;letter-spacing:1px}
+  .curious-body p{margin:0 0 10px}
+  .curious-body ul{margin:0 0 10px;padding-left:26px}
+  .curious-body li{margin:0 0 4px}
+  .curious-body b{color:var(--txt)}
+  .curious-body a{color:var(--hn)}
+  .curious-body hr{border:none;border-top:2px solid var(--bevel-d);margin:16px 0}
+  .dlg-btns{display:flex;gap:10px;justify-content:center;padding:0 18px 16px}
+  .dlg-btns button{font-family:'Press Start 2P',monospace;font-size:8px;padding:10px 12px;
+       background:var(--panel2);color:var(--txt);cursor:pointer;letter-spacing:1px}
+  .dlg-btns button:first-child{color:var(--hn)}
+  .dlg-btns button:active{border-color:var(--bevel-d) var(--bevel-l) var(--bevel-l) var(--bevel-d)}
+  .dlg-btns button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+  @media(max-width:640px){
+    body{font-size:17px}
+    .hud{margin-left:0;width:100%}
+    .stat{min-width:74px;flex:1}
+    footer{grid-template-columns:auto 1fr}
+    .side{grid-column:1/3;flex-direction:row;flex-wrap:wrap}
+    .chip{flex:1;min-width:150px}
+  }
+</style>
+</head>
+<body>
+
+<div id="title">
+  <div class="px t-big">DRAIN<br>PATROL</div>
+  <button id="start" class="px">&#9658; PRESS START</button>
+  <div class="t-cred">A VISUALISATION OF TIME-STAMPED GPS DATA &middot; SHOWING THE PROGRESS OF CITIZEN AUDITS IN BENGALURU<br>
+    DATA SOURCE: CITIZEN AUDIT DATA FROM THE <b style="color:var(--txt)">BUILDING A RESILIENT BENGALURU</b> WEBSITE (ACCESSED 23 MAY 2026)<br>
+    BASEMAP: OPENSTREETMAP CONTRIBUTORS</div>
+  <div class="credit-bar">A PROJECT BY SONIA DAS &middot; <a href="https://github.com/soniadas123" target="_blank" rel="noopener">GITHUB</a></div>
+</div>
+
+<header>
+  <button id="home" class="bevel px" aria-label="Back to title screen" title="Back to title (Esc)">&#8962;</button>
+  <button id="curious" class="bevel px" aria-label="Curious? Learn more" title="Curious?">?</button>
+  <div class="logo px">DRAIN PATROL<small>CITIZEN AUDIT &middot; BENGALURU 2026</small></div>
+  <div class="hud">
+    <div class="stat bevel-in"><div class="lb px">SCORE</div><div class="vl" id="c-pts">000</div></div>
+    <div class="stat bevel-in"><div class="lb px">DAY</div><div class="vl" id="c-days">00/22</div></div>
+    <div class="stat bevel-in"><div class="lb px">TEAMS</div><div class="vl" id="c-teams">00</div></div>
+  </div>
+</header>
+
+<div id="stage">
+  <div id="map" role="application" aria-label="Animated map of audit points"></div>
+  <div id="linklost" class="px">! MAP LINK LOST &middot; GRID MODE !</div>
+  <div id="crt"></div>
+</div>
+
+<div id="snddlg" role="dialog" aria-modal="true" aria-labelledby="snddlg-t">
+  <div class="dlg bevel">
+    <div class="dlg-bar" id="snddlg-t">&#9834; SOUND CHECK</div>
+    <div class="dlg-body">THIS GAME HAS SOUND.<br>PRESS <b style="color:var(--hn)">SOUND ON</b> FOR AUDIO.</div>
+    <div class="dlg-btns">
+      <button id="dlg-on" class="bevel">&#9834; SOUND ON</button>
+      <button id="dlg-off" class="bevel">SILENT MODE</button>
+    </div>
+  </div>
+</div>
+
+<div id="curiousdlg" role="dialog" aria-modal="true" aria-labelledby="curiousdlg-t">
+  <div class="dlg curious-dlg bevel">
+    <div class="dlg-bar" id="curiousdlg-t">? CURIOUS?</div>
+    <div class="dlg-body curious-body">
+      <p>If this visualisation made you curious, it has already done its job.</p>
+
+      <h2>What are the dots?</h2>
+      <p>Each dot represents a real-world observation collected in the field.</p>
+      <p>The locations were recorded using <b>ODK (Open Data Kit)</b>, an open-source mobile application used to collect georeferenced field data.</p>
+
+      <h2>What is ODK?</h2>
+      <p>ODK is an open-source tool for collecting data in the field.</p>
+      <p>It allows users to record observations along with GPS coordinates, photographs, timestamps, and survey responses&mdash;all from a mobile device.</p>
+
+      <h2>What are Vrishabhavathi, Koramangala, and Hebbal?</h2>
+      <p>Bengaluru's natural terrain is shaped by five major valleys that guide how rainwater flows through the city:</p>
+      <ul>
+        <li>Hebbal Valley</li>
+        <li>Koramangala&ndash;Challaghatta Valley</li>
+        <li>Vrishabhavathi Valley</li>
+        <li>Arkavathi Valley</li>
+        <li>Suvarnamukhi Valley</li>
+      </ul>
+      <p>This visualisation contains observations collected from three of these valleys:</p>
+      <ul>
+        <li>Hebbal Valley</li>
+        <li>Koramangala&ndash;Challaghatta Valley</li>
+        <li>Vrishabhavathi Valley</li>
+      </ul>
+
+      <h2>Why visualise locations with timestamps?</h2>
+      <p>A location tells us <b>where</b> something was observed.</p>
+      <p>A timestamp tells us <b>when</b> it was observed.</p>
+      <p>Together, they allow us to understand patterns, monitor change, and build evidence for better decisions.</p>
+      <p>This visualisation is a small experiment in showing how space and time work together.</p>
+
+      <h2>Why build this?</h2>
+      <p>I wanted to explore whether geospatial concepts could be introduced through interaction rather than explanation.</p>
+      <p>Instead of starting with technical terms, I wanted to begin with curiosity.</p>
+      <p>A simple visualisation can lead to bigger questions:</p>
+      <ul>
+        <li>How is location recorded?</li>
+        <li>How accurate is GPS?</li>
+        <li>Why does time matter?</li>
+        <li>How is field data collected?</li>
+        <li>Why use open-source tools?</li>
+        <li>What happens to the data after it's collected?</li>
+      </ul>
+      <p>Those questions are the beginning of geospatial science.</p>
+
+      <hr>
+      <p><b>If this visualisation made you curious, it has done its job.</b></p>
+      <p>Have more questions? I'd love to hear them.</p>
+      <p>&#128231; <a href="mailto:sonia.scholarship.2021@gmail.com">sonia.scholarship.2021@gmail.com</a></p>
+    </div>
+    <div class="dlg-btns">
+      <button id="curious-close" class="bevel">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <button id="play" class="bevel">&#9658; START</button>
+  <div class="tl-wrap">
+    <div class="tl-head">
+      <span>JAN 10</span><span id="dateout">READY</span><span>MAY 19</span>
+    </div>
+    <div id="timeline" class="bevel-in" aria-label="Timeline of field days"></div>
+  </div>
+  <div class="side">
+    <div id="legend" style="display:flex;flex-direction:column;gap:6px"></div>
+    <button id="snd" class="bevel">SND:OFF</button>
+  </div>
+</footer>
+<div class="credit-bar">A PROJECT BY SONIA DAS &middot; <a href="https://github.com/soniadas123" target="_blank" rel="noopener">GITHUB</a></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const AUDIT_POINTS=[{"lat":12.97661,"lon":77.621017,"date":"2026-01-10","valley":"Koramangala Challaghatta Valley","team":"A1","zone":"Central"},{"lat":12.978452,"lon":77.623502,"date":"2026-01-10","valley":"Koramangala Challaghatta Valley","team":"A1","zone":"Central"},{"lat":12.978704,"lon":77.625905,"date":"2026-01-10","valley":"Koramangala Challaghatta Valley","team":"A1","zone":"Central"},{"lat":12.978669,"lon":77.625257,"date":"2026-01-10","valley":"Koramangala Challaghatta Valley","team":"A1","zone":"Central"},{"lat":12.978588,"lon":77.627343,"date":"2026-01-10","valley":"Koramangala Challaghatta Valley","team":"A1","zone":"Central"},{"lat":12.977684,"lon":77.621264,"date":"2026-01-10","valley":"Koramangala Challaghatta Valley","team":"A1","zone":"Central"},{"lat":12.978397,"lon":77.622884,"date":"2026-01-10","valley":"Koramangala Challaghatta Valley","team":"A1","zone":"Central"},{"lat":12.978655,"lon":77.624698,"date":"2026-01-10","valley":"Koramangala Challaghatta Valley","team":"A1","zone":"Central"},{"lat":13.063997,"lon":77.559714,"date":"2026-01-17","valley":"Hebbal Nagawara Valley","team":"A1","zone":"North"},{"lat":12.915177,"lon":77.643767,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A6","zone":"South"},{"lat":12.915455,"lon":77.642121,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A6","zone":"South"},{"lat":12.915377,"lon":77.643749,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A4","zone":"South"},{"lat":12.915679,"lon":77.641611,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A4","zone":"South"},{"lat":12.915695,"lon":77.636725,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A6","zone":"South"},{"lat":12.915215,"lon":77.644405,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A5","zone":"South"},{"lat":12.915335,"lon":77.643572,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A5","zone":"South"},{"lat":12.915532,"lon":77.642387,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A5","zone":"South"},{"lat":12.915643,"lon":77.639755,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A5","zone":"South"},{"lat":12.915728,"lon":77.63718,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A5","zone":"South"},{"lat":12.915609,"lon":77.641738,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A5","zone":"South"},{"lat":12.915625,"lon":77.640196,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A5","zone":"South"},{"lat":12.915911,"lon":77.635473,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A4","zone":"South"},{"lat":12.915974,"lon":77.6343,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A4","zone":"South"},{"lat":12.915353,"lon":77.642759,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A7","zone":"South"},{"lat":12.915226,"lon":77.644632,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A4","zone":"South"},{"lat":12.915769,"lon":77.63803,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A7","zone":"South"},{"lat":12.915466,"lon":77.643004,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A4","zone":"South"},{"lat":12.915556,"lon":77.640758,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A4","zone":"South"},{"lat":12.915983,"lon":77.633476,"date":"2026-01-31","valley":"Koramangala Challaghatta Valley","team":"A4","zone":"South"},{"lat":12.955337,"lon":77.512048,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A10","zone":"West"},{"lat":12.956243,"lon":77.512149,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A10","zone":"West"},{"lat":12.956806,"lon":77.512025,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A10","zone":"West"},{"lat":12.958616,"lon":77.514994,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A10","zone":"West"},{"lat":12.959522,"lon":77.515465,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A10","zone":"West"},{"lat":12.955543,"lon":77.51148,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A8","zone":"West"},{"lat":12.956307,"lon":77.511553,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A8","zone":"West"},{"lat":12.95693,"lon":77.511746,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A8","zone":"West"},{"lat":12.957751,"lon":77.514671,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A8","zone":"West"},{"lat":12.958284,"lon":77.511808,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A9","zone":"West"},{"lat":12.958167,"lon":77.514976,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A9","zone":"West"},{"lat":12.957879,"lon":77.513943,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A9","zone":"West"},{"lat":12.958764,"lon":77.512068,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A11","zone":"West"},{"lat":12.959032,"lon":77.51231,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A11","zone":"West"},{"lat":12.957666,"lon":77.514265,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A11","zone":"West"},{"lat":12.958931,"lon":77.515096,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A11","zone":"West"},{"lat":12.956648,"lon":77.490835,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A1","zone":"West"},{"lat":12.954761,"lon":77.490041,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A1","zone":"West"},{"lat":12.952211,"lon":77.488931,"date":"2026-02-07","valley":"Vrishabhavati Valley","team":"A1","zone":"West"},{"lat":12.987678,"lon":77.601113,"date":"2026-02-19","valley":"Koramangala Challaghatta Valley","team":"A12","zone":"Central"},{"lat":12.987766,"lon":77.599893,"date":"2026-02-19","valley":"Koramangala Challaghatta Valley","team":"A12","zone":"Central"},{"lat":12.988051,"lon":77.599216,"date":"2026-02-19","valley":"Koramangala Challaghatta Valley","team":"A12","zone":"Central"},{"lat":12.988164,"lon":77.598685,"date":"2026-02-19","valley":"Koramangala Challaghatta Valley","team":"A12","zone":"Central"},{"lat":12.988583,"lon":77.598012,"date":"2026-02-19","valley":"Koramangala Challaghatta Valley","team":"A12","zone":"Central"},{"lat":12.989251,"lon":77.597497,"date":"2026-02-19","valley":"Koramangala Challaghatta Valley","team":"A12","zone":"Central"},{"lat":12.989335,"lon":77.5974,"date":"2026-02-19","valley":"Koramangala Challaghatta Valley","team":"A12","zone":"Central"},{"lat":12.985514,"lon":77.609866,"date":"2026-02-19","valley":"Koramangala Challaghatta Valley","team":"A15","zone":"Central"},{"lat":13.033202,"lon":77.625648,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.032349,"lon":77.625489,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.029128,"lon":77.624814,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.028099,"lon":77.625086,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A19","zone":"North"},{"lat":13.026394,"lon":77.625579,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A19","zone":"North"},{"lat":13.022843,"lon":77.626792,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A19","zone":"North"},{"lat":13.032265,"lon":77.625574,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A19","zone":"North"},{"lat":13.026331,"lon":77.625365,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.03316,"lon":77.625838,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A19","zone":"North"},{"lat":13.027153,"lon":77.625286,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A19","zone":"North"},{"lat":13.03092,"lon":77.625326,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.02682,"lon":77.625264,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.031744,"lon":77.625325,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.028084,"lon":77.624925,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.02562,"lon":77.625725,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.023811,"lon":77.626402,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A18","zone":"North"},{"lat":13.03076,"lon":77.625101,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A20","zone":"North"},{"lat":13.028641,"lon":77.624803,"date":"2026-02-21","valley":"Hebbal Nagawara Valley","team":"A20","zone":"North"},{"lat":12.986825,"lon":77.604308,"date":"2026-02-21","valley":"Koramangala Challaghatta Valley","team":"A14","zone":"Central"},{"lat":12.986491,"lon":77.605168,"date":"2026-02-21","valley":"Koramangala Challaghatta Valley","team":"A14","zone":"Central"},{"lat":12.986804,"lon":77.606065,"date":"2026-02-21","valley":"Koramangala Challaghatta Valley","team":"A14","zone":"Central"},{"lat":12.981487,"lon":77.615761,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A17","zone":"Central"},{"lat":12.982488,"lon":77.614042,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A17","zone":"Central"},{"lat":12.93925,"lon":77.717784,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A28","zone":"East"},{"lat":12.912007,"lon":77.507848,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A26","zone":"West"},{"lat":12.937995,"lon":77.712627,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A29","zone":"East"},{"lat":12.93903,"lon":77.717425,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A28","zone":"East"},{"lat":12.938318,"lon":77.711938,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A29","zone":"East"},{"lat":12.911058,"lon":77.508203,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A26","zone":"West"},{"lat":12.938332,"lon":77.715558,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A28","zone":"East"},{"lat":12.938728,"lon":77.710848,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A29","zone":"East"},{"lat":12.93859,"lon":77.710127,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A29","zone":"East"},{"lat":12.937963,"lon":77.709664,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A29","zone":"East"},{"lat":12.936985,"lon":77.709516,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A29","zone":"East"},{"lat":12.93648,"lon":77.709415,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A29","zone":"East"},{"lat":12.912776,"lon":77.50763,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A27","zone":"West"},{"lat":12.9133,"lon":77.507207,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A27","zone":"West"},{"lat":12.913667,"lon":77.507055,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A27","zone":"West"},{"lat":12.91441,"lon":77.506448,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A27","zone":"West"},{"lat":12.91001,"lon":77.508278,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A26","zone":"West"},{"lat":12.909907,"lon":77.509409,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A26","zone":"West"},{"lat":12.90953,"lon":77.5103,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A26","zone":"West"},{"lat":12.908975,"lon":77.511134,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A26","zone":"West"},{"lat":12.90799,"lon":77.510917,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A26","zone":"West"},{"lat":12.915792,"lon":77.505985,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A27","zone":"West"},{"lat":12.9403,"lon":77.719128,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A28","zone":"East"},{"lat":12.940914,"lon":77.721149,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A28","zone":"East"},{"lat":12.902501,"lon":77.512208,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A25","zone":"West"},{"lat":12.903991,"lon":77.511019,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A25","zone":"West"},{"lat":12.895219,"lon":77.527765,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A23","zone":"South"},{"lat":12.90117,"lon":77.513131,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A25","zone":"West"},{"lat":12.89928,"lon":77.534739,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A22","zone":"South"},{"lat":12.902139,"lon":77.512114,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A25","zone":"West"},{"lat":12.892832,"lon":77.513593,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A24","zone":"South"},{"lat":12.905214,"lon":77.511904,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A25","zone":"West"},{"lat":12.893598,"lon":77.516722,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A24","zone":"South"},{"lat":12.895204,"lon":77.526723,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A23","zone":"South"},{"lat":12.905213,"lon":77.510685,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A25","zone":"West"},{"lat":12.896165,"lon":77.531872,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A23","zone":"South"},{"lat":12.904672,"lon":77.511534,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A25","zone":"West"},{"lat":12.893231,"lon":77.518543,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A24","zone":"South"},{"lat":12.89972,"lon":77.536467,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A22","zone":"South"},{"lat":12.89371,"lon":77.521119,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A24","zone":"South"},{"lat":12.896961,"lon":77.532212,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A23","zone":"South"},{"lat":12.89594,"lon":77.52093,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A24","zone":"South"},{"lat":12.897279,"lon":77.522375,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A24","zone":"South"},{"lat":12.899588,"lon":77.537532,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A22","zone":"South"},{"lat":12.91411,"lon":77.506453,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A27","zone":"West"},{"lat":12.897646,"lon":77.523196,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A24","zone":"South"},{"lat":12.89526,"lon":77.528369,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A23","zone":"South"},{"lat":12.915051,"lon":77.505934,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A27","zone":"West"},{"lat":12.89927,"lon":77.539027,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A22","zone":"South"},{"lat":12.895402,"lon":77.531331,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A23","zone":"South"},{"lat":12.900244,"lon":77.540598,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A22","zone":"South"},{"lat":12.900984,"lon":77.541063,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A22","zone":"South"},{"lat":12.895119,"lon":77.529038,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A23","zone":"South"},{"lat":12.901938,"lon":77.541655,"date":"2026-02-22","valley":"Vrishabhavati Valley","team":"A22","zone":"South"},{"lat":12.938649,"lon":77.716454,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A28","zone":"East"},{"lat":12.938048,"lon":77.713371,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A28","zone":"East"},{"lat":12.938352,"lon":77.714506,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A28","zone":"East"},{"lat":12.981709,"lon":77.615588,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A17","zone":"Central"},{"lat":12.982804,"lon":77.612905,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A17","zone":"Central"},{"lat":12.982709,"lon":77.613504,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A17","zone":"Central"},{"lat":12.983177,"lon":77.612763,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A17","zone":"Central"},{"lat":12.983522,"lon":77.612628,"date":"2026-02-22","valley":"Koramangala Challaghatta Valley","team":"A17","zone":"Central"},{"lat":12.985607,"lon":77.610071,"date":"2026-02-23","valley":"Koramangala Challaghatta Valley","team":"A15","zone":"Central"},{"lat":12.98576,"lon":77.609165,"date":"2026-02-23","valley":"Koramangala Challaghatta Valley","team":"A15","zone":"Central"},{"lat":12.985959,"lon":77.608699,"date":"2026-02-23","valley":"Koramangala Challaghatta Valley","team":"A15","zone":"Central"},{"lat":12.986277,"lon":77.608375,"date":"2026-02-23","valley":"Koramangala Challaghatta Valley","team":"A15","zone":"Central"},{"lat":12.98646,"lon":77.608402,"date":"2026-02-23","valley":"Koramangala Challaghatta Valley","team":"A15","zone":"Central"},{"lat":12.985711,"lon":77.609167,"date":"2026-02-23","valley":"Koramangala Challaghatta Valley","team":"A15","zone":"Central"},{"lat":12.98556,"lon":77.609883,"date":"2026-02-23","valley":"Koramangala Challaghatta Valley","team":"A15","zone":"Central"},{"lat":12.986732,"lon":77.603283,"date":"2026-02-26","valley":"Koramangala Challaghatta Valley","team":"A13","zone":"Central"},{"lat":12.986391,"lon":77.602804,"date":"2026-02-26","valley":"Koramangala Challaghatta Valley","team":"A13","zone":"Central"},{"lat":12.986581,"lon":77.601936,"date":"2026-02-26","valley":"Koramangala Challaghatta Valley","team":"A13","zone":"Central"},{"lat":12.972877,"lon":77.734553,"date":"2026-03-01","valley":"Koramangala Challaghatta Valley","team":"A30","zone":"East"},{"lat":12.972682,"lon":77.734475,"date":"2026-03-01","valley":"Koramangala Challaghatta Valley","team":"A30","zone":"East"},{"lat":12.971805,"lon":77.733922,"date":"2026-03-01","valley":"Koramangala Challaghatta Valley","team":"A30","zone":"East"},{"lat":12.97151,"lon":77.733343,"date":"2026-03-01","valley":"Koramangala Challaghatta Valley","team":"A30","zone":"East"},{"lat":12.971281,"lon":77.733031,"date":"2026-03-01","valley":"Koramangala Challaghatta Valley","team":"A30","zone":"East"},{"lat":12.970759,"lon":77.732878,"date":"2026-03-01","valley":"Koramangala Challaghatta Valley","team":"A30","zone":"East"},{"lat":12.970351,"lon":77.732401,"date":"2026-03-01","valley":"Koramangala Challaghatta Valley","team":"A30","zone":"East"},{"lat":12.969768,"lon":77.732121,"date":"2026-03-01","valley":"Koramangala Challaghatta Valley","team":"A30","zone":"East"},{"lat":12.956624,"lon":77.723823,"date":"2026-03-10","valley":"Koramangala Challaghatta Valley","team":"A32","zone":"East"},{"lat":12.960484,"lon":77.724315,"date":"2026-03-10","valley":"Koramangala Challaghatta Valley","team":"A32","zone":"East"},{"lat":12.960722,"lon":77.723709,"date":"2026-03-11","valley":"Koramangala Challaghatta Valley","team":"A32","zone":"East"},{"lat":12.960833,"lon":77.722639,"date":"2026-03-11","valley":"Koramangala Challaghatta Valley","team":"A32","zone":"East"},{"lat":13.023126,"lon":77.64509,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.021467,"lon":77.64515,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.019594,"lon":77.645053,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.017893,"lon":77.644891,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.016427,"lon":77.64488,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.015287,"lon":77.644768,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.02257,"lon":77.645049,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.020537,"lon":77.644989,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.017975,"lon":77.644959,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.017298,"lon":77.644847,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.016247,"lon":77.64473,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.01461,"lon":77.64471,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.014173,"lon":77.64468,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":13.012696,"lon":77.645084,"date":"2026-03-21","valley":"Hebbal Nagawara Valley","team":"A35","zone":"North"},{"lat":12.929712,"lon":77.591713,"date":"2026-03-28","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.931361,"lon":77.592125,"date":"2026-03-28","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.931392,"lon":77.5927,"date":"2026-03-28","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"Central"},{"lat":12.93134,"lon":77.593486,"date":"2026-03-28","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"Central"},{"lat":12.931185,"lon":77.5945,"date":"2026-03-28","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"Central"},{"lat":13.042495,"lon":77.566424,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.041894,"lon":77.565718,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.041369,"lon":77.564955,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.040349,"lon":77.564407,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.039951,"lon":77.563744,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.042732,"lon":77.566585,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.043255,"lon":77.567264,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.044007,"lon":77.567717,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.044816,"lon":77.568109,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.045388,"lon":77.568851,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.042315,"lon":77.565913,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.041623,"lon":77.565131,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.040471,"lon":77.564392,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.043103,"lon":77.567385,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.043903,"lon":77.567777,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.045218,"lon":77.568862,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.045871,"lon":77.569408,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.046452,"lon":77.569905,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.040785,"lon":77.564705,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.040065,"lon":77.563625,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":13.03943,"lon":77.562656,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"West"},{"lat":13.046508,"lon":77.571108,"date":"2026-03-28","valley":"Hebbal Nagawara Valley","team":"A38","zone":"North"},{"lat":12.862597,"lon":77.585147,"date":"2026-03-28","valley":"Koramangala Challaghatta Valley","team":"A37","zone":"South"},{"lat":12.862311,"lon":77.586113,"date":"2026-03-28","valley":"Koramangala Challaghatta Valley","team":"A37","zone":"South"},{"lat":12.861664,"lon":77.587208,"date":"2026-03-28","valley":"Koramangala Challaghatta Valley","team":"A37","zone":"South"},{"lat":12.929694,"lon":77.59179,"date":"2026-04-04","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.93138,"lon":77.592591,"date":"2026-04-04","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"Central"},{"lat":12.93122,"lon":77.5934,"date":"2026-04-04","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"Central"},{"lat":12.931172,"lon":77.594706,"date":"2026-04-04","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"Central"},{"lat":13.005772,"lon":77.530904,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A42","zone":"West"},{"lat":13.006876,"lon":77.529973,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A42","zone":"West"},{"lat":13.001969,"lon":77.528763,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A42","zone":"West"},{"lat":13.013084,"lon":77.53591,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A42","zone":"West"},{"lat":13.011202,"lon":77.536103,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A47","zone":"West"},{"lat":13.007369,"lon":77.534057,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A47","zone":"West"},{"lat":13.005488,"lon":77.531586,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A47","zone":"West"},{"lat":13.004834,"lon":77.5297,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A47","zone":"West"},{"lat":13.00216,"lon":77.529162,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A47","zone":"West"},{"lat":12.999051,"lon":77.527151,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A47","zone":"West"},{"lat":13.014026,"lon":77.536275,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A45","zone":"West"},{"lat":13.009065,"lon":77.535431,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A45","zone":"West"},{"lat":13.006487,"lon":77.533107,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A45","zone":"West"},{"lat":13.005776,"lon":77.530315,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A45","zone":"West"},{"lat":13.003563,"lon":77.52899,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A45","zone":"West"},{"lat":13.000648,"lon":77.527973,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A45","zone":"West"},{"lat":13.010552,"lon":77.536173,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A44","zone":"West"},{"lat":13.015334,"lon":77.536761,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A40","zone":"West"},{"lat":13.008832,"lon":77.530214,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A44","zone":"West"},{"lat":13.00915,"lon":77.535308,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A40","zone":"West"},{"lat":13.006041,"lon":77.532351,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A40","zone":"West"},{"lat":13.0066,"lon":77.533078,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A44","zone":"West"},{"lat":13.009012,"lon":77.528569,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A44","zone":"West"},{"lat":13.007497,"lon":77.530172,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A40","zone":"West"},{"lat":13.007815,"lon":77.530563,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A40","zone":"West"},{"lat":13.008774,"lon":77.530389,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A40","zone":"West"},{"lat":13.009512,"lon":77.528071,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A44","zone":"West"},{"lat":13.007508,"lon":77.53009,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A44","zone":"West"},{"lat":13.008994,"lon":77.529463,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A40","zone":"West"},{"lat":13.009659,"lon":77.528218,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A40","zone":"West"},{"lat":13.015114,"lon":77.53661,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A41","zone":"West"},{"lat":13.008347,"lon":77.534874,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A41","zone":"West"},{"lat":13.005594,"lon":77.531326,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A41","zone":"West"},{"lat":13.006798,"lon":77.529877,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A41","zone":"West"},{"lat":13.005031,"lon":77.529466,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A41","zone":"West"},{"lat":13.003229,"lon":77.528903,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A41","zone":"West"},{"lat":13.000834,"lon":77.527708,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A41","zone":"West"},{"lat":13.010268,"lon":77.53658,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A48","zone":"West"},{"lat":13.006534,"lon":77.533093,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A48","zone":"West"},{"lat":13.005696,"lon":77.531751,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A48","zone":"West"},{"lat":13.004103,"lon":77.52934,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A48","zone":"West"},{"lat":13.001492,"lon":77.528256,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A48","zone":"West"},{"lat":12.999215,"lon":77.527097,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A48","zone":"West"},{"lat":13.011866,"lon":77.535907,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A43","zone":"West"},{"lat":13.006511,"lon":77.533194,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A43","zone":"West"},{"lat":13.005856,"lon":77.53043,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A43","zone":"West"},{"lat":13.006083,"lon":77.529758,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A43","zone":"West"},{"lat":13.003598,"lon":77.529083,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A43","zone":"West"},{"lat":13.001431,"lon":77.527813,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A43","zone":"West"},{"lat":13.012164,"lon":77.535879,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A46","zone":"West"},{"lat":13.005559,"lon":77.531793,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A46","zone":"West"},{"lat":13.007819,"lon":77.534521,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A42","zone":"West"},{"lat":13.004027,"lon":77.529384,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A42","zone":"West"},{"lat":13.005308,"lon":77.529845,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A46","zone":"West"},{"lat":13.002761,"lon":77.529252,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A46","zone":"West"},{"lat":12.999692,"lon":77.527842,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A42","zone":"West"},{"lat":13.00868,"lon":77.53522,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A46","zone":"West"},{"lat":12.999654,"lon":77.527861,"date":"2026-04-08","valley":"Vrishabhavati Valley","team":"A46","zone":"West"},{"lat":13.023903,"lon":77.645151,"date":"2026-04-19","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.024577,"lon":77.645288,"date":"2026-04-19","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.025748,"lon":77.644567,"date":"2026-04-19","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.027149,"lon":77.643793,"date":"2026-04-19","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.02786,"lon":77.643343,"date":"2026-04-19","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":12.951294,"lon":77.551922,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A54","zone":"West"},{"lat":12.951956,"lon":77.549723,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A55","zone":"West"},{"lat":12.951831,"lon":77.546177,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A54","zone":"West"},{"lat":12.951868,"lon":77.543832,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A54","zone":"West"},{"lat":12.951566,"lon":77.549297,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A54","zone":"West"},{"lat":12.952851,"lon":77.541593,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A55","zone":"West"},{"lat":12.952585,"lon":77.541577,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A54","zone":"West"},{"lat":12.95573,"lon":77.541618,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A54","zone":"West"},{"lat":12.951656,"lon":77.5537,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A51","zone":"Central"},{"lat":12.952107,"lon":77.551435,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A51","zone":"Central"},{"lat":12.952,"lon":77.548298,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A51","zone":"West"},{"lat":12.951178,"lon":77.545035,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A51","zone":"West"},{"lat":12.952307,"lon":77.542455,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A51","zone":"West"},{"lat":12.95413,"lon":77.541384,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A51","zone":"West"},{"lat":12.956773,"lon":77.542729,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A51","zone":"West"},{"lat":12.951242,"lon":77.552352,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A55","zone":"Central"},{"lat":12.951852,"lon":77.546532,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A55","zone":"West"},{"lat":12.951599,"lon":77.544274,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A55","zone":"West"},{"lat":12.955464,"lon":77.541954,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A55","zone":"West"},{"lat":12.951989,"lon":77.55453,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A50","zone":"Central"},{"lat":12.951972,"lon":77.551371,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A50","zone":"West"},{"lat":12.95183,"lon":77.548688,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A50","zone":"West"},{"lat":12.951448,"lon":77.545583,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A50","zone":"West"},{"lat":12.95166,"lon":77.542791,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A50","zone":"West"},{"lat":12.952866,"lon":77.541975,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A50","zone":"West"},{"lat":12.955942,"lon":77.542245,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A50","zone":"West"},{"lat":12.958172,"lon":77.543792,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A50","zone":"West"},{"lat":12.958203,"lon":77.543392,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A54","zone":"West"},{"lat":12.95892,"lon":77.543947,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A54","zone":"West"},{"lat":12.951627,"lon":77.551608,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A53","zone":"West"},{"lat":12.951291,"lon":77.548871,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A53","zone":"West"},{"lat":12.951795,"lon":77.54618,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A53","zone":"West"},{"lat":12.952004,"lon":77.543119,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A53","zone":"West"},{"lat":12.953203,"lon":77.541405,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A53","zone":"West"},{"lat":12.956281,"lon":77.542143,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A53","zone":"West"},{"lat":12.958958,"lon":77.544004,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A53","zone":"West"},{"lat":12.957281,"lon":77.543749,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A55","zone":"West"},{"lat":12.951413,"lon":77.552748,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A52","zone":"Central"},{"lat":12.952189,"lon":77.550594,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A52","zone":"Central"},{"lat":12.951911,"lon":77.547167,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A52","zone":"West"},{"lat":12.95137,"lon":77.544682,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A52","zone":"West"},{"lat":12.951981,"lon":77.543371,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A52","zone":"West"},{"lat":12.952954,"lon":77.542001,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A52","zone":"West"},{"lat":12.956528,"lon":77.542537,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A52","zone":"West"},{"lat":12.95161,"lon":77.553786,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A56","zone":"Central"},{"lat":12.951904,"lon":77.551079,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A56","zone":"West"},{"lat":12.951977,"lon":77.547583,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A56","zone":"West"},{"lat":12.951188,"lon":77.545024,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A56","zone":"West"},{"lat":12.952749,"lon":77.542152,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A56","zone":"West"},{"lat":12.954321,"lon":77.541979,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A56","zone":"West"},{"lat":12.956486,"lon":77.54275,"date":"2026-04-27","valley":"Vrishabhavati Valley","team":"A56","zone":"West"},{"lat":13.028944,"lon":77.642998,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.029765,"lon":77.644193,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.029774,"lon":77.645212,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.030664,"lon":77.645534,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.031416,"lon":77.645589,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.032587,"lon":77.645615,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.032799,"lon":77.645643,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.032087,"lon":77.645328,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.027964,"lon":77.643438,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.027078,"lon":77.644012,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":13.026036,"lon":77.64437,"date":"2026-05-09","valley":"Hebbal Nagawara Valley","team":"A35","zone":"East"},{"lat":12.916273,"lon":77.622968,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.91778,"lon":77.622151,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.918228,"lon":77.62195,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.919238,"lon":77.621217,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.921123,"lon":77.618342,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.921667,"lon":77.616835,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.922372,"lon":77.61615,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.922953,"lon":77.61571,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.924728,"lon":77.610473,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.925017,"lon":77.608882,"date":"2026-05-10","valley":"Koramangala Challaghatta Valley","team":"A36","zone":"South"},{"lat":12.907561,"lon":77.47829,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A64","zone":"West"},{"lat":12.908503,"lon":77.477681,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A64","zone":"West"},{"lat":12.912378,"lon":77.488387,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A57","zone":"West"},{"lat":12.913907,"lon":77.476966,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A64","zone":"West"},{"lat":12.909119,"lon":77.487047,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A58","zone":"West"},{"lat":12.917306,"lon":77.477814,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A64","zone":"West"},{"lat":12.919216,"lon":77.478309,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A64","zone":"West"},{"lat":12.913266,"lon":77.477599,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A62","zone":"West"},{"lat":12.904954,"lon":77.486948,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A57","zone":"West"},{"lat":12.921034,"lon":77.478718,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A64","zone":"West"},{"lat":12.915978,"lon":77.477811,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A62","zone":"West"},{"lat":12.907185,"lon":77.478259,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A61","zone":"West"},{"lat":12.90857,"lon":77.477273,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A61","zone":"West"},{"lat":12.916133,"lon":77.47764,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A61","zone":"West"},{"lat":12.918647,"lon":77.477882,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A61","zone":"West"},{"lat":12.920283,"lon":77.478605,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A61","zone":"West"},{"lat":12.921932,"lon":77.479004,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A61","zone":"West"},{"lat":12.912854,"lon":77.477588,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A61","zone":"West"},{"lat":12.907004,"lon":77.479064,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A63","zone":"West"},{"lat":12.906236,"lon":77.47899,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A63","zone":"West"},{"lat":12.91167,"lon":77.478023,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A63","zone":"West"},{"lat":12.914982,"lon":77.477407,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A63","zone":"West"},{"lat":12.918423,"lon":77.477923,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A63","zone":"West"},{"lat":12.920758,"lon":77.478945,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A63","zone":"West"},{"lat":12.904106,"lon":77.482579,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A57","zone":"West"},{"lat":12.922237,"lon":77.479322,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A62","zone":"West"},{"lat":12.91247,"lon":77.489023,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A58","zone":"West"},{"lat":12.906332,"lon":77.487143,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A57","zone":"West"},{"lat":12.904495,"lon":77.486131,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A58","zone":"West"},{"lat":12.904115,"lon":77.484705,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A57","zone":"West"},{"lat":12.903321,"lon":77.482607,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A58","zone":"West"},{"lat":12.904883,"lon":77.482475,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A58","zone":"West"},{"lat":12.905584,"lon":77.481798,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A57","zone":"West"},{"lat":12.905736,"lon":77.482049,"date":"2026-05-17","valley":"Vrishabhavati Valley","team":"A58","zone":"West"},{"lat":12.906846,"lon":77.479019,"date":"2026-05-19","valley":"Vrishabhavati Valley","team":"A62","zone":"West"},{"lat":12.911758,"lon":77.47791,"date":"2026-05-19","valley":"Vrishabhavati Valley","team":"A64","zone":"West"},{"lat":12.919588,"lon":77.478733,"date":"2026-05-19","valley":"Vrishabhavati Valley","team":"A62","zone":"West"}];
+
+const VALLEYS = {
+  'Vrishabhavati Valley':            {c:'#c084ff', short:'VRISHABHAVATI'},
+  'Koramangala Challaghatta Valley': {c:'#ff5040', short:'KORAMANGALA-CH.'},
+  'Hebbal Nagawara Valley':          {c:'#3fffc2', short:'HEBBAL-NAGAWARA'}
+};
+const DAYS = [...new Set(AUDIT_POINTS.map(p=>p.date))].sort();
+const byDay = {}; DAYS.forEach(d=>byDay[d]=AUDIT_POINTS.filter(p=>p.date===d));
+const fmt = d => new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'2-digit',month:'short'}).toUpperCase();
+const pad = (n,w)=>String(n).padStart(w,'0');
+
+/* ---- map: fetch lower-zoom tiles stretched x2 => chunky pixels ---- */
+const map = L.map('map',{zoomControl:true, zoomSnap:1});
+map.fitBounds(AUDIT_POINTS.map(p=>[p.lat,p.lon]),{padding:[24,24]});
+
+/* provider failover: OSM -> Carto light -> Carto dark -> GRID MODE */
+const PROVIDERS = [
+  {url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', sub:null,
+   attr:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'},
+  {url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', sub:'abcd',
+   attr:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'},
+  {url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', sub:'abcd',
+   attr:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'}
+];
+let provIdx=0, tiles=null, tileErr=0, tileOk=false;
+function mountTiles(){
+  if(tiles) map.removeLayer(tiles);
+  const p=PROVIDERS[provIdx]; tileErr=0; tileOk=false;
+  const opts={maxZoom:19, crossOrigin:true, attribution:p.attr};
+  if(p.sub) opts.subdomains=p.sub;
+  tiles=L.tileLayer(p.url,opts).addTo(map);
+  tiles.on('tileload',()=>{tileOk=true; document.getElementById('stage').classList.remove('gridmode');});
+  tiles.on('tileerror',()=>{
+    if(tileOk) return;
+    if(++tileErr>=4){
+      if(provIdx<PROVIDERS.length-1){ provIdx++; mountTiles(); }
+      else document.getElementById('stage').classList.add('gridmode');
+    }
+  });
+  setTimeout(()=>{ if(!tileOk){
+    if(provIdx<PROVIDERS.length-1){ provIdx++; mountTiles(); }
+    else document.getElementById('stage').classList.add('gridmode');
+  }}, 3500);
+}
+mountTiles();
+
+
+/* ---- sound: tiny web-audio bleeps ---- */
+let audio=null, sndOn=false;
+function beep(freq, dur=0.06, type='square', gain=0.05){
+  if(!sndOn) return;
+  audio = audio || new (window.AudioContext||window.webkitAudioContext)();
+  const o=audio.createOscillator(), g=audio.createGain();
+  o.type=type; o.frequency.value=freq; g.gain.value=gain;
+  o.connect(g); g.connect(audio.destination);
+  o.start(); g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime+dur);
+  o.stop(audio.currentTime+dur+0.02);
+}
+function jingle(){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.12),i*110)); }
+const sndBtn=document.getElementById('snd');
+sndBtn.addEventListener('click',()=>{
+  sndOn=!sndOn; sndBtn.textContent='SND:'+(sndOn?'ON':'OFF');
+  sndBtn.classList.toggle('on',sndOn); if(sndOn) beep(880,.08);
+});
+
+/* ---- state ---- */
+let dayIdx=-1, playing=false, timer=null;
+const markers=[]; const seenTeams=new Set();
+const visible={}; Object.keys(VALLEYS).forEach(v=>visible[v]=true);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DWELL = 900;
+
+/* ---- timeline ---- */
+const tl=document.getElementById('timeline');
+const maxCount=Math.max(...DAYS.map(d=>byDay[d].length));
+DAYS.forEach((d,i)=>{
+  const b=document.createElement('div');
+  b.className='bar';
+  b.style.height=Math.max(5, Math.round(byDay[d].length/maxCount*40))+'px';
+  b.dataset.tip=fmt(d)+' \u00b7 '+byDay[d].length+' PTS';
+  b.addEventListener('click',()=>{pause(); seek(i); beep(660,.05);});
+  tl.appendChild(b);
+});
+
+/* ---- legend ---- */
+const lg=document.getElementById('legend');
+Object.entries(VALLEYS).forEach(([name,v])=>{
+  const total=AUDIT_POINTS.filter(p=>p.valley===name).length;
+  const btn=document.createElement('button');
+  btn.className='chip bevel';
+  btn.innerHTML=`<span class="sw" style="background:${v.c}"></span>${v.short}`;
+  btn.addEventListener('click',()=>{
+    visible[name]=!visible[name];
+    btn.classList.toggle('off',!visible[name]);
+    beep(visible[name]?740:330,.05);
+    markers.forEach(m=>{
+      if(m.valley!==name) return;
+      if(visible[name] && m.dayIdx<=dayIdx) m.marker.addTo(map);
+      else map.removeLayer(m.marker);
+    });
+  });
+  lg.appendChild(btn);
+});
+
+/* ---- reveal ---- */
+function addDay(i,animate){
+  byDay[DAYS[i]].forEach(p=>{
+    const col=(VALLEYS[p.valley]||{c:'#fff'}).c;
+    const icon=L.divIcon({className:'',iconSize:[9,9],iconAnchor:[4,4],
+      html:`<div class="pt ${animate&&!reduced?'fresh':''}" style="width:9px;height:9px;background:${col}"></div>`});
+    const mk=L.marker([p.lat,p.lon],{icon});
+    mk.bindPopup(`<span class="k">DATE</span> ${fmt(p.date)} 2026<br>`+
+                 `<span class="k">VALLEY</span> ${(VALLEYS[p.valley]||{short:p.valley}).short}<br>`+
+                 `<span class="k">TEAM</span> ${p.team||'--'} <span class="k">ZONE</span> ${(p.zone||'--').toUpperCase()}`);
+    if(visible[p.valley]!==false) mk.addTo(map);
+    markers.push({marker:mk,valley:p.valley,dayIdx:i});
+    if(p.team) seenTeams.add(p.team);
+  });
+}
+function clearAll(){ markers.forEach(m=>map.removeLayer(m.marker)); markers.length=0; seenTeams.clear(); }
+function paint(){
+  [...tl.children].forEach((b,i)=>{b.classList.toggle('done',i<dayIdx);b.classList.toggle('now',i===dayIdx);});
+  document.getElementById('c-pts').textContent=pad(markers.length,3);
+  document.getElementById('c-days').textContent=pad(dayIdx+1,2)+'/22';
+  document.getElementById('c-teams').textContent=pad(seenTeams.size,2);
+  document.getElementById('dateout').textContent=dayIdx>=0?fmt(DAYS[dayIdx]):'READY';
+}
+function seek(i){ clearAll(); dayIdx=i; for(let k=0;k<=i;k++) addDay(k,k===i); paint(); }
+function step(){
+  if(dayIdx>=DAYS.length-1){ pause(); jingle();
+    document.getElementById('dateout').textContent='COMPLETE!'; return; }
+  dayIdx++; addDay(dayIdx,true); paint();
+  beep(440+dayIdx*28,.05);
+}
+function play(){
+  if(dayIdx>=DAYS.length-1){ clearAll(); dayIdx=-1; paint(); }
+  playing=true; const b=document.getElementById('play');
+  b.innerHTML='&#10074;&#10074; PAUSE'; b.setAttribute('aria-label','Pause');
+  step(); timer=setInterval(step,DWELL);
+}
+function pause(){
+  playing=false; clearInterval(timer);
+  const b=document.getElementById('play');
+  b.innerHTML='&#9658; START'; b.setAttribute('aria-label','Play');
+}
+document.getElementById('play').addEventListener('click',()=>playing?pause():play());
+
+/* ---- curious dialog ---- */
+const curiousDlg=document.getElementById('curiousdlg');
+function openCurious(){ curiousDlg.classList.add('show'); beep(880,.06); }
+function closeCurious(){ curiousDlg.classList.remove('show'); beep(392,.06); }
+document.getElementById('curious').addEventListener('click',openCurious);
+document.getElementById('curious-close').addEventListener('click',closeCurious);
+
+document.addEventListener('keydown',e=>{
+  if(e.code==='Escape' && curiousDlg.classList.contains('show')){ closeCurious(); return; }
+  if(e.code==='Space'&&e.target.tagName!=='BUTTON'){e.preventDefault();playing?pause():play();}
+  if(e.code==='ArrowRight'){pause(); if(dayIdx<DAYS.length-1) seek(dayIdx+1);}
+  if(e.code==='ArrowLeft'){pause(); if(dayIdx>0) seek(dayIdx-1);}
+  if(e.code==='Escape'
+     && document.getElementById('title').style.display==='none'
+     && !document.getElementById('snddlg').classList.contains('show')
+     && !curiousDlg.classList.contains('show')){
+    document.getElementById('home').click();
+  }
+});
+
+/* ---- title screen -> sound dialog -> game ---- */
+document.getElementById('start').addEventListener('click',()=>{
+  document.getElementById('title').style.display='none';
+  map.invalidateSize();
+  document.getElementById('snddlg').classList.add('show');
+  document.getElementById('dlg-on').focus();
+});
+document.getElementById('home').addEventListener('click',()=>{
+  pause(); beep(392,.06);
+  document.getElementById('title').style.display='flex';
+});
+function beginGame(withSound){
+  document.getElementById('snddlg').classList.remove('show');
+  sndOn = withSound;
+  sndBtn.textContent='SND:'+(sndOn?'ON':'OFF');
+  sndBtn.classList.toggle('on',sndOn);
+  if(sndOn){ beep(523,.07); setTimeout(()=>beep(784,.09),90); }
+  dayIdx=-1; paint();
+  setTimeout(play, 400);
+}
+document.getElementById('dlg-on').addEventListener('click',()=>beginGame(true));
+document.getElementById('dlg-off').addEventListener('click',()=>beginGame(false));
+</script>
+</body>
+</html>
