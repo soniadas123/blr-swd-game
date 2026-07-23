@@ -14,12 +14,8 @@ Each dot on the map is a real-world observation collected in the field using **O
 
 ## Data source
 
-Citizen audit data from the **Building a Resilient Bengaluru** website (accessed 23 May 2026). Basemap tiles courtesy of OpenStreetMap contributors.
+Citizen audit data from the **Building a Resilient Bengaluru** website (accessed on 23rd May 2026). Basemap tiles courtesy of OpenStreetMap contributors.
 
-## Running locally
 
-It's a single self-contained HTML file — just open [index.html](index.html) in a browser.
 
-## Credits
 
-A project by **Sonia Das** · [GitHub](https://github.com/soniadas123)
