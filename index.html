@@ -31,12 +31,13 @@
          flex-wrap:wrap;border-bottom:3px solid var(--bevel-d)}
   .logo{font-size:13px;color:var(--gold);text-shadow:2px 2px 0 var(--hot);white-space:nowrap;letter-spacing:1px}
   .logo small{display:block;font-size:7px;color:var(--dim);text-shadow:none;margin-top:5px;letter-spacing:2px}
-  #home,#curious{background:var(--panel2);color:var(--gold);font-size:13px;width:38px;height:38px;
+  #home,#curious,#info{background:var(--panel2);color:var(--gold);font-size:13px;width:38px;height:38px;
         padding:0;cursor:pointer;line-height:1;flex-shrink:0}
-  #home:hover,#curious:hover{color:var(--txt)}
-  #home:active,#curious:active{border-color:var(--bevel-d) var(--bevel-l) var(--bevel-l) var(--bevel-d)}
-  #home:focus-visible,#curious:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+  #home:hover,#curious:hover,#info:hover{color:var(--txt)}
+  #home:active,#curious:active,#info:active{border-color:var(--bevel-d) var(--bevel-l) var(--bevel-l) var(--bevel-d)}
+  #home:focus-visible,#curious:focus-visible,#info:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
   #curious{color:var(--hn)}
+  #info{color:var(--vv)}
   .hud{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap}
   .stat{background:#000;padding:4px 10px 3px;min-width:96px;text-align:center}
   .stat .lb{font-size:7px;color:var(--dim);letter-spacing:1px}
@@ -140,9 +141,9 @@
          background:transparent}
 
   /* ================= SOUND DIALOG ================= */
-  #snddlg,#curiousdlg{display:none;position:fixed;inset:0;z-index:1800;background:rgba(5,5,14,.65);
+  #snddlg,#curiousdlg,#infodlg{display:none;position:fixed;inset:0;z-index:1800;background:rgba(5,5,14,.65);
           align-items:center;justify-content:center;padding:20px}
-  #snddlg.show,#curiousdlg.show{display:flex}
+  #snddlg.show,#curiousdlg.show,#infodlg.show{display:flex}
   .dlg{background:var(--panel);padding:0;min-width:280px;max-width:90vw;
        box-shadow:6px 6px 0 #000}
   .curious-dlg{max-width:640px;width:100%}
@@ -191,7 +192,8 @@
 </div>
 
 <header>
-  <button id="home" class="bevel px" aria-label="Back to title screen" title="Back to title (Esc)">&#8962;</button>
+  <button id="home" class="bevel px" aria-label="Home" title="Home">&#8962;</button>
+  <button id="info" class="bevel px" aria-label="How to use this visualisation" title="How to use">i</button>
   <button id="curious" class="bevel px" aria-label="Curious? Learn more" title="Curious?">?</button>
   <div class="logo px">DRAIN PATROL<small>CITIZEN AUDIT &middot; BENGALURU 2026</small></div>
   <div class="hud">
@@ -218,6 +220,34 @@
   </div>
 </div>
 
+<div id="infodlg" role="dialog" aria-modal="true" aria-labelledby="infodlg-t">
+  <div class="dlg curious-dlg bevel">
+    <div class="dlg-bar" id="infodlg-t">i HOW TO USE</div>
+    <div class="dlg-body curious-body">
+      <h2>1. Press start</h2>
+      <p>Hit <b>&#9658; START</b> in the bottom-left corner to begin the audit playback.</p>
+
+      <h2>2. Watch the audit unfold</h2>
+      <p>Each press of start steps forward one field day, revealing where citizen audit teams recorded observations across Bengaluru&mdash;in the order they happened, from <b>10 JAN</b> to <b>19 MAY</b>.</p>
+      <p>You can also drag the timeline slider to jump straight to any day.</p>
+
+      <h2>3. Switch between valleys</h2>
+      <p>Use the colour chips in the bottom-right to toggle a valley on or off, so you can focus on the progress of the valley you're curious about:</p>
+      <ul>
+        <li><span style="color:var(--vv)">&#9632;</span> Vrishabhavati Valley</li>
+        <li><span style="color:var(--kc)">&#9632;</span> Koramangala&ndash;Challaghatta Valley</li>
+        <li><span style="color:var(--hn)">&#9632;</span> Hebbal&ndash;Nagawara Valley</li>
+      </ul>
+
+      <hr>
+      <p>SCORE, DAY and TEAMS at the top track overall progress as the audit plays out.</p>
+    </div>
+    <div class="dlg-btns">
+      <button id="info-close" class="bevel">CLOSE</button>
+    </div>
+  </div>
+</div>
+
 <div id="curiousdlg" role="dialog" aria-modal="true" aria-labelledby="curiousdlg-t">
   <div class="dlg curious-dlg bevel">
     <div class="dlg-bar" id="curiousdlg-t">? CURIOUS?</div>
@@ -226,14 +256,21 @@
 
       <h2>What are the dots?</h2>
       <p>Each dot represents a real-world observation collected in the field.</p>
-      <p>The locations were recorded using <b>ODK (Open Data Kit)</b>, an open-source mobile application used to collect georeferenced field data.</p>
+      <p>But how did those dots get there?</p>
 
       <h2>What is ODK?</h2>
-      <p>ODK is an open-source tool for collecting data in the field.</p>
-      <p>It allows users to record observations along with GPS coordinates, photographs, timestamps, and survey responses&mdash;all from a mobile device.</p>
+      <p>The observations were recorded using <b>ODK (Open Data Kit)</b>, an open-source mobile application used for collecting field data.</p>
+      <p>A single observation can include:</p>
+      <ul>
+        <li>&#128205; GPS location</li>
+        <li>&#128248; Photographs</li>
+        <li>&#9201;&#65039; Timestamp</li>
+        <li>&#128221; Notes and survey responses</li>
+      </ul>
+      <p>But why record all of that together?</p>
 
-      <h2>What are Vrishabhavathi, Koramangala, and Hebbal?</h2>
-      <p>Bengaluru's natural terrain is shaped by five major valleys that guide how rainwater flows through the city:</p>
+      <h2>What are Vrishabhavathi, Koramangala&ndash;Challaghatta, and Hebbal?</h2>
+      <p>Bengaluru's landscape is shaped by <b>five natural valleys</b> that guide how rainwater flows through the city:</p>
       <ul>
         <li>Hebbal Valley</li>
         <li>Koramangala&ndash;Challaghatta Valley</li>
@@ -247,31 +284,32 @@
         <li>Koramangala&ndash;Challaghatta Valley</li>
         <li>Vrishabhavathi Valley</li>
       </ul>
+      <p>Why these three? What stories might they tell about Bengaluru's drainage network?</p>
 
-      <h2>Why visualise locations with timestamps?</h2>
-      <p>A location tells us <b>where</b> something was observed.</p>
-      <p>A timestamp tells us <b>when</b> it was observed.</p>
-      <p>Together, they allow us to understand patterns, monitor change, and build evidence for better decisions.</p>
-      <p>This visualisation is a small experiment in showing how space and time work together.</p>
+      <h2>Why show location and time?</h2>
+      <p>A location tells us <b>where</b> something happened.</p>
+      <p>A timestamp tells us <b>when</b> it happened.</p>
+      <p>Together, they transform a point on a map into an observation that can reveal patterns, monitor change, and help us understand how cities evolve over time.</p>
 
       <h2>Why build this?</h2>
-      <p>I wanted to explore whether geospatial concepts could be introduced through interaction rather than explanation.</p>
-      <p>Instead of starting with technical terms, I wanted to begin with curiosity.</p>
-      <p>A simple visualisation can lead to bigger questions:</p>
+      <p>Because I believe curiosity is one of the best ways to learn.</p>
+      <p>Most of us use geospatial technology every day without thinking about it. We navigate with maps, book cabs, track deliveries, and check the weather.</p>
+      <p>Behind those everyday experiences are ideas that are scientific, simple and beautiful.</p>
+      <p>This visualisation is an invitation to ask questions like:</p>
       <ul>
-        <li>How is location recorded?</li>
-        <li>How accurate is GPS?</li>
-        <li>Why does time matter?</li>
+        <li>How does GPS know where I am?</li>
+        <li>Why is a timestamp as important as a location?</li>
         <li>How is field data collected?</li>
-        <li>Why use open-source tools?</li>
-        <li>What happens to the data after it's collected?</li>
+        <li>Why do cities map stormwater drains?</li>
+        <li>Why do so many geospatial projects use open-source tools?</li>
+        <li>What happens to the data after it is collected?</li>
       </ul>
-      <p>Those questions are the beginning of geospatial science.</p>
+      <p>Those questions are where geospatial science begins.</p>
 
       <hr>
       <p><b>If this visualisation made you curious, it has done its job.</b></p>
-      <p>Have more questions? I'd love to hear them.</p>
-      <p>&#128231; <a href="mailto:sonia.scholarship.2021@gmail.com">sonia.scholarship.2021@gmail.com</a></p>
+      <p>I'm exploring new ways to communicate geospatial science through interactive visualisations, open-source tools, and urban data.</p>
+      <p>If you're interested in my work, have ideas to share, or are looking for someone who works at the intersection of geospatial science, coding, and science communication, I'd be happy to connect.</p>
     </div>
     <div class="dlg-btns">
       <button id="curious-close" class="bevel">CLOSE</button>
@@ -444,6 +482,13 @@ function pause(){
 }
 document.getElementById('play').addEventListener('click',()=>playing?pause():play());
 
+/* ---- info dialog ---- */
+const infoDlg=document.getElementById('infodlg');
+function openInfo(){ infoDlg.classList.add('show'); beep(880,.06); }
+function closeInfo(){ infoDlg.classList.remove('show'); beep(392,.06); }
+document.getElementById('info').addEventListener('click',openInfo);
+document.getElementById('info-close').addEventListener('click',closeInfo);
+
 /* ---- curious dialog ---- */
 const curiousDlg=document.getElementById('curiousdlg');
 function openCurious(){ curiousDlg.classList.add('show'); beep(880,.06); }
@@ -452,6 +497,7 @@ document.getElementById('curious').addEventListener('click',openCurious);
 document.getElementById('curious-close').addEventListener('click',closeCurious);
 
 document.addEventListener('keydown',e=>{
+  if(e.code==='Escape' && infoDlg.classList.contains('show')){ closeInfo(); return; }
   if(e.code==='Escape' && curiousDlg.classList.contains('show')){ closeCurious(); return; }
   if(e.code==='Space'&&e.target.tagName!=='BUTTON'){e.preventDefault();playing?pause():play();}
   if(e.code==='ArrowRight'){pause(); if(dayIdx<DAYS.length-1) seek(dayIdx+1);}
@@ -459,6 +505,7 @@ document.addEventListener('keydown',e=>{
   if(e.code==='Escape'
      && document.getElementById('title').style.display==='none'
      && !document.getElementById('snddlg').classList.contains('show')
+     && !infoDlg.classList.contains('show')
      && !curiousDlg.classList.contains('show')){
     document.getElementById('home').click();
   }
